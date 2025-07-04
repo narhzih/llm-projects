@@ -1,46 +1,34 @@
-from langchain.prompts import MessagesPlaceholder, HumanMessagePromptTemplate, ChatPromptTemplate
-from langchain.memory import ConversationBufferMemory, FileChatMessageHistory, ConversationSummaryMemory
-from langchain_openai import ChatOpenAI
-from langchain.chains import LLMChain
+from langchain.document_loaders import TextLoader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain_openai import OpenAIEmbeddings
+from langchain.vectorstores.chroma import Chroma
 from dotenv import load_dotenv
 
+
 load_dotenv()
+embeddings = OpenAIEmbeddings()
 
-chat = ChatOpenAI()
+text_splitter = CharacterTextSplitter(
+    separator="\n",
+    chunk_size=200,
+    chunk_overlap=0
+)
 
-# memory = ConversationBufferMemory(
-#     chat_memory=FileChatMessageHistory("messages.json"),
-#     memory_key="messages", 
-#     return_messages=True,
+loader = TextLoader("facts.txt")
+docs = loader.load_and_split(
+    text_splitter=text_splitter
+)
 
-# )
-
-
-memory = ConversationSummaryMemory(
-    # chat_memory=FileChatMessageHistory("messages.json"),
-    memory_key="messages", 
-    return_messages=True,
-    llm=chat,
+db = Chroma.from_documents(
+    docs,
+    embedding=embeddings,
+    persist_directory="emb"
 )
 
 
+results = db.similarity_search_with_score("What is an interesting fact about the english language?")
 
-prompt = ChatPromptTemplate(
-    input_variables=["content", "messages"],
-    messages=[
-        MessagesPlaceholder(variable_name="messages"),
-        HumanMessagePromptTemplate.from_template("{content}")
-    ]
-)
-
-chain = LLMChain(
-    llm=chat,
-    prompt=prompt,
-    memory=memory
-)
-
-while True: 
-    content = input(">> ")
-    result = chain({"content": content})
-    print(result["text"])
-    
+for result in results: 
+    print("\n")
+    print(result[1])
+    print(result[0].page_content)
